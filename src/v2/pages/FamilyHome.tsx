@@ -1,8 +1,8 @@
-import { CalendarDays, ChartLine, Lock, Sprout, Syringe } from 'lucide-react'
+import { CalendarDays, ChartLine, Sparkles, Sprout, Syringe } from 'lucide-react'
 import { contentsForChild, pendingVaccines } from '../domain'
 import { useStore } from '../store'
 import { Artwork, Card, Empty, Progress, StatusBadge } from '../ui'
-import { activeEnrollment, ageLabel, currentSale, currentStepOf, diffDays, firstName, fmtDate, TODAY } from '../utils'
+import { activeEnrollment, ageLabel, currentSale, currentStepOf, diffDays, firstName, fmtDate, programStatus, TODAY } from '../utils'
 
 export function useChild() {
   const { state, childId } = useStore()
@@ -15,7 +15,9 @@ export function FamilyHome() {
   if (!child || !user) return <Empty title="Nenhuma criança vinculada" text="Fale com a secretaria para vincular seu filho à sua conta." />
 
   const enr = activeEnrollment(state, child.id)
-  const pendingSale = !enr ? currentSale(state, child.id) : undefined
+  const sale = !enr ? currentSale(state, child.id) : undefined
+  const status = sale && programStatus(sale)
+  const offer = state.programs.find((p) => p.active)
   const step = enr && currentStepOf(enr.program, child)
   const nextAppt = state.appointments.filter((a) => a.patientId === child.id && a.date >= TODAY && a.status === 'Agendado').sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0]
   const vaccines = pendingVaccines(state, child)
@@ -41,11 +43,12 @@ export function FamilyHome() {
       {enr && step ? (
         <section className="program-hero">
           <div>
-            <span className="eyebrow">Meu programa</span>
+            <span className="eyebrow">Meu programa · {enr.contract.label.split(' —')[0]}</span>
             <h2>{enr.program.name}</h2>
-            <h3>{enr.program.ageLabel}</h3>
+            <h3>Passo {step.n} — {step.title}</h3>
             <Progress value={(step.n / enr.program.steps.length) * 100} />
-            <p className="hero-meta"><span>Passo {step.n} de {enr.program.steps.length}</span><b>{step.startDay} a {step.endDay} dias</b></p>
+            <p className="hero-meta"><span>Passo {step.n} de {enr.program.steps.length}</span><b>{step.rangeLabel}</b></p>
+            <p className="muted small">Programa ativo até {fmtDate(enr.sale.endDate)}</p>
             <button className="btn btn-primary" onClick={() => go('my-program')}>Continuar</button>
           </div>
           <Artwork seed={child.name + step.n} className="hero-art" />
@@ -53,16 +56,18 @@ export function FamilyHome() {
       ) : (
         <section className="program-hero locked">
           <div>
-            <span className="eyebrow">{pendingSale ? 'Programa aguardando pagamento' : 'Programas Crescer'}</span>
-            <h2>{pendingSale ? 'Quase lá!' : `Acompanhe ${gender === 'a' ? 'a' : 'o'} ${firstName(child.name)} de perto`}</h2>
+            <span className="eyebrow">{status === 'Pagamento pendente' ? 'Programa aguardando ativação' : status === 'Programa encerrado' ? 'Programa encerrado' : 'Programas Crescer'}</span>
+            <h2>{status === 'Pagamento pendente' ? 'Quase lá!' : status === 'Programa encerrado' ? `O programa ${gender === 'a' ? 'da' : 'do'} ${firstName(child.name)} terminou` : `Acompanhe ${gender === 'a' ? 'a' : 'o'} ${firstName(child.name)} de perto`}</h2>
             <p>
-              {pendingSale
-                ? `Assim que o pagamento do programa for confirmado, os passos, materiais e o canal de mensagens com a equipe serão liberados.`
-                : 'Com o Primeiros Passos você tem encontros a cada 45 dias, orientações por fase, materiais exclusivos e mensagens diretas com a equipe do Dr. André.'}
+              {status === 'Pagamento pendente'
+                ? 'Assim que o pagamento for registrado, os passos, conteúdos e o canal de mensagens com a equipe ficam disponíveis.'
+                : status === 'Programa encerrado'
+                  ? `A vigência terminou em ${fmtDate(sale!.endDate)}. Para continuar o acompanhamento, fale com a secretaria sobre a renovação.`
+                  : `Você já tem acesso ao Crescer. O programa ${offer?.name ?? ''} acrescenta passos de 45 dias, encontro do passo, Mapa do Passo, conteúdos por fase e mensagens com a equipe.`}
             </p>
-            {pendingSale ? <StatusBadge status="Pendente" /> : <p className="muted small">Fale com a secretaria na próxima consulta para conhecer os programas.</p>}
+            {status ? <StatusBadge status={status} /> : <button className="btn btn-ghost" onClick={() => go('my-program')}>Conhecer o programa</button>}
           </div>
-          <span className="hero-lock"><Lock size={40} strokeWidth={1.4} /></span>
+          <span className="hero-lock"><Sparkles size={40} strokeWidth={1.4} /></span>
         </section>
       )}
 
@@ -92,7 +97,7 @@ export function FamilyHome() {
               </button>
             ))}
           </div>
-        ) : <Empty icon={<Sprout />} title="Os materiais aparecem quando o programa estiver ativo" />}
+        ) : <Empty icon={<Sprout />} title="Nenhum material disponível no momento" />}
       </Card>
     </>
   )

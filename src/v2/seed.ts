@@ -1,8 +1,8 @@
 import { DEFAULT_PROGRAMS, DEFAULT_VACCINES, curveRows } from './reference'
-import type { AppState, Appointment, Content, Conversation, FollowUp, GrowthRecord, Patient, Sale, VaccineRecord } from './types'
+import type { AppState, Appointment, Content, Conversation, EncounterKind, FollowUp, GrowthRecord, Patient, PaymentMethod, Sale, VaccineRecord } from './types'
 import { addDays, addMonths, ageMonthsExact, TODAY } from './utils'
 
-export const STATE_VERSION = 3
+export const STATE_VERSION = 5
 
 const patients: Patient[] = [
   { id: 'p-laura', name: 'Laura Mendes', sex: 'F', birthDate: '2026-06-20', guardian: 'Ana Beatriz Mendes', guardianRelation: 'Mãe', phone: '(11) 98123-4455', email: 'ana.mendes@email.com', createdAt: '2026-06-24' },
@@ -10,36 +10,40 @@ const patients: Patient[] = [
   { id: 'p-helena', name: 'Helena Lima', sex: 'F', birthDate: '2026-06-02', guardian: 'Juliana Lima', guardianRelation: 'Mãe', phone: '(11) 97654-1200', email: 'juliana.lima@email.com', createdAt: '2026-10-01' },
   { id: 'p-miguel', name: 'Miguel Rocha', sex: 'M', birthDate: '2024-11-20', guardian: 'Renata Rocha', guardianRelation: 'Mãe', phone: '(11) 98777-0098', email: 'renata.rocha@email.com', createdAt: '2024-11-25' },
   { id: 'p-sophia', name: 'Sophia Costa', sex: 'F', birthDate: '2026-01-10', guardian: 'Fernanda Costa', guardianRelation: 'Mãe', phone: '(11) 99001-2244', email: 'fernanda.costa@email.com', createdAt: '2026-01-15' },
-  { id: 'p-pedro', name: 'Pedro Almeida', sex: 'M', birthDate: '2025-12-01', guardian: 'Paulo Almeida', guardianRelation: 'Pai', phone: '(11) 98450-7781', email: 'paulo.almeida@email.com', createdAt: '2026-02-03', notes: 'Consultas avulsas — sem programa contratado.' },
+  { id: 'p-pedro', name: 'Pedro Almeida', sex: 'M', birthDate: '2025-12-01', guardian: 'Paulo Almeida', guardianRelation: 'Pai', phone: '(11) 98450-7781', email: 'paulo.almeida@email.com', createdAt: '2026-02-03', notes: 'Família com conta no Crescer, sem programa contratado.' },
   { id: 'p-alice', name: 'Alice Martins', sex: 'F', birthDate: '2026-09-12', guardian: 'Mariana Martins', guardianRelation: 'Mãe', phone: '(11) 97700-5512', email: 'mariana.martins@email.com', createdAt: '2026-09-14' },
   { id: 'p-theo', name: 'Theo Ribeiro', sex: 'M', birthDate: '2025-03-10', guardian: 'Lucas Ribeiro', guardianRelation: 'Pai', phone: '(11) 96655-4433', email: 'lucas.ribeiro@email.com', createdAt: '2025-03-12' },
 ]
 
-const sale = (id: string, patientId: string, programId: string, saleDate: string, startDate: string, status: Sale['status'], payment: Sale['payment'] = 'PIX', discount = 0): Sale => ({
-  id, patientId, programId, listPrice: programId === 'pp-0-1' ? 4000 : 6000, discount, payment,
-  installments: payment === 'Cartão de crédito' ? 10 : 1, saleDate, startDate, status, createdBy: 'Marina Costa',
+/* Vendas: produto "Meus Primeiros Passos", contratos Ano 1 / Ano 2 com vigência de 12 meses. */
+const sale = (id: string, patientId: string, contractId: 'ano1' | 'ano2', saleDate: string, startDate: string, paymentStatus: Sale['paymentStatus'], payment: PaymentMethod = 'PIX', discount = 0): Sale => ({
+  id, patientId, programId: 'mpp', contractId, listPrice: 4000, discount, payment,
+  installments: payment === 'Cartão de crédito' ? 10 : 1, saleDate, startDate, endDate: addMonths(startDate, 12),
+  paymentStatus, paidAt: paymentStatus === 'Pago' ? saleDate : undefined, createdBy: 'Marina Costa',
 })
 
 const sales: Sale[] = [
-  sale('s-miguel-1', 'p-miguel', 'pp-0-1', '2024-11-25', '2024-11-25', 'Pago', 'Cartão de crédito'),
-  sale('s-theo', 'p-theo', 'pp-0-1', '2025-03-12', '2025-03-12', 'Cancelado', 'Boleto'),
-  sale('s-miguel-2', 'p-miguel', 'pp-1-2', '2025-11-10', '2025-11-20', 'Pago', 'PIX', 300),
-  sale('s-sophia', 'p-sophia', 'pp-0-1', '2026-01-15', '2026-01-15', 'Pago', 'Cartão de crédito'),
-  sale('s-laura', 'p-laura', 'pp-0-1', '2026-06-24', '2026-06-24', 'Pago', 'PIX'),
-  sale('s-gabriel', 'p-gabriel', 'pp-1-2', '2026-07-15', '2026-08-15', 'Pago', 'Cartão de crédito'),
-  sale('s-alice', 'p-alice', 'pp-0-1', '2026-09-14', '2026-09-14', 'Pago', 'PIX', 200),
-  sale('s-helena', 'p-helena', 'pp-0-1', '2026-10-05', '2026-10-05', 'Pendente', 'Boleto'),
+  sale('s-miguel-1', 'p-miguel', 'ano1', '2024-11-25', '2024-11-25', 'Pago', 'Cartão de crédito'),
+  sale('s-theo-1', 'p-theo', 'ano1', '2025-03-12', '2025-03-12', 'Pago', 'Boleto'),
+  sale('s-gabriel-1', 'p-gabriel', 'ano1', '2025-08-20', '2025-08-20', 'Pago', 'PIX'),
+  sale('s-miguel-2', 'p-miguel', 'ano2', '2025-11-10', '2025-11-20', 'Pago', 'PIX', 300),
+  sale('s-sophia-1', 'p-sophia', 'ano1', '2026-01-15', '2026-01-15', 'Pago', 'Cartão de crédito'),
+  sale('s-pedro-1', 'p-pedro', 'ano1', '2026-02-03', '2026-02-03', 'Cancelado', 'Boleto'),
+  sale('s-laura-1', 'p-laura', 'ano1', '2026-06-24', '2026-06-24', 'Pago', 'PIX'),
+  sale('s-gabriel-2', 'p-gabriel', 'ano2', '2026-08-10', '2026-08-15', 'Pago', 'Cartão de crédito'),
+  sale('s-alice-1', 'p-alice', 'ano1', '2026-09-14', '2026-09-14', 'Pago', 'PIX', 200),
+  sale('s-helena-1', 'p-helena', 'ano1', '2026-10-05', '2026-10-05', 'Pendente', 'A definir'),
 ]
 
-/* Vacinas: doses já devidas marcadas como aplicadas, exceto as listadas como pendentes. */
+/* Vacinas: doses já devidas marcadas como aplicadas, exceto as listadas como em aberto. */
 const missingDoses: Record<string, string[]> = {
   'p-laura': ['menb-1', 'menc-1'],
   'p-helena': ['hepb-3', 'dtp-2', 'hib-2', 'vip-2', 'pnc-2', 'rota-2'],
-  'p-sophia': ['flu-1', 'covid-1'],
-  'p-pedro': ['menb-2', 'flu-1', 'fa-1', 'covid-1'],
+  'p-sophia': ['flu-1', 'flu-2', 'covid-1'],
+  'p-pedro': ['menb-2', 'flu-1', 'flu-2', 'fa-1', 'covid-1'],
   'p-miguel': ['hepa-2'],
-  'p-theo': ['var-1', 'hepa-2'],
-  'p-gabriel': ['scr-1', 'menb-r'],
+  'p-theo': ['var-2', 'hepa-2'],
+  'p-gabriel': ['scr-1', 'var-1', 'menb-r'],
 }
 
 const vaccineRecords: VaccineRecord[] = patients.flatMap((p) => {
@@ -51,7 +55,7 @@ const vaccineRecords: VaccineRecord[] = patients.flatMap((p) => {
       patientId: p.id,
       doseId: d.id,
       date: d.ageMonths === 0 ? p.birthDate : addDays(addMonths(p.birthDate, d.ageMonths), 3),
-      place: d.network === 'Particular' ? 'Clínica Crescer' : 'UBS',
+      place: 'Clínica Crescer',
     }))
 })
 
@@ -93,106 +97,115 @@ const growth: GrowthRecord[] = patients.flatMap((p) => {
   }))
 })
 
-const fu = (patientId: string, programId: string, stepN: number, date: string, evolution: string, orientations: string, pendencies: Array<[string, boolean, boolean?]> = []): FollowUp => ({
-  id: `f-${patientId}-${programId}-${stepN}`, patientId, programId, step: stepN, date, author: 'Dr. André', evolution, orientations,
+/* Encontros do passo (consulta com o médico ou triagem com a equipe). */
+const fu = (patientId: string, stepN: number, date: string, kind: EncounterKind, evolution: string, orientations: string, pendencies: Array<[string, boolean, boolean?]> = []): FollowUp => ({
+  id: `f-${patientId}-${stepN}`, patientId, programId: 'mpp', step: stepN, kind, date,
+  author: kind === 'Consulta com o Dr. André' ? 'Dr. André' : 'Equipe (técnica de enfermagem)',
+  mapAnswers: {}, evolution, orientations,
   pendencies: pendencies.map(([text, done, familyVisible = true], i) => ({ id: `pd-${patientId}-${stepN}-${i}`, text, done, familyVisible })),
 })
 
+const CONSULTA: EncounterKind = 'Consulta com o Dr. André'
+const TRIAGEM: EncounterKind = 'Triagem com a equipe'
+
+/** Encontros históricos simples (dados de demonstração). */
+const history = (patientId: string, birth: string, steps: number[]) =>
+  steps.map((n, i) => fu(patientId, n, addDays(birth, n * 45 - 10), i % 2 ? TRIAGEM : CONSULTA, 'Encontro do passo registrado (dado de demonstração).', 'Orientações do passo reforçadas com a família.'))
+
 const followUps: FollowUp[] = [
-  fu('p-laura', 'pp-0-1', 1, '2026-07-01', 'Boa pega, ganho de peso adequado (+150 g em 11 dias). Coto umbilical caiu no 9º dia.', 'Manter livre demanda. Vitamina D 400 UI/dia. Sono seguro reforçado.', [['Teste da orelhinha', true], ['Teste do olhinho', true]]),
-  fu('p-laura', 'pp-0-1', 2, '2026-08-05', 'Sorriso social presente, cólicas no fim da tarde. Desenvolvimento adequado.', 'Massagem abdominal, tummy time 3–5x/dia. Vacinas dos 2 meses agendadas.', [['Vacinas dos 2 meses', true], ['Registrar episódios de cólica por 1 semana', false]]),
-  fu('p-sophia', 'pp-0-1', 1, '2026-02-10', 'Adaptação tranquila. Aleitamento exclusivo.', 'Sono seguro, vitamina D.'),
-  fu('p-sophia', 'pp-0-1', 2, '2026-03-28', 'Ganho de peso adequado, sorriso social.', 'Tummy time diário.'),
-  fu('p-sophia', 'pp-0-1', 3, '2026-05-10', 'Rola de lado, refluxo leve.', 'Posição elevada após mamadas.'),
-  fu('p-sophia', 'pp-0-1', 4, '2026-06-25', 'Sinais de prontidão para introdução alimentar.', 'Plano de introdução alimentar entregue.', [['Comprar cadeira de alimentação', true]]),
-  fu('p-sophia', 'pp-0-1', 5, '2026-08-08', 'Introdução alimentar bem aceita. Senta com apoio.', 'Oferecer água, variar texturas.', [['Curso de primeiros socorros', false], ['Vacina influenza', false]]),
-  fu('p-alice', 'pp-0-1', 1, '2026-09-20', 'Recém-nascida a termo, boa sucção. Perda de peso fisiológica recuperada.', 'Livre demanda, sono seguro, banho.', [['Teste da orelhinha', false]]),
-  ...[1, 2, 3, 4].map((n) => fu('p-miguel', 'pp-1-2', n, addDays('2025-11-20', 50 + (n - 1) * 61), `Encontro do passo ${n}: desenvolvimento adequado para a idade.`, 'Orientações da fase entregues à família.')),
-  fu('p-gabriel', 'pp-1-2', 1, '2026-08-20', 'Anda com segurança, primeiras palavras.', 'Leitura diária, limitar telas.', [['Vacina tríplice viral (12 meses)', false], ['Meningocócica B — reforço', false]]),
+  fu('p-laura', 1, '2026-07-01', CONSULTA, 'Encontro do passo 1 registrado (dado de demonstração).', 'Orientações do passo 1 entregues à família.', [['Teste da orelhinha', true], ['Teste do olhinho', true]]),
+  fu('p-laura', 2, '2026-08-05', TRIAGEM, 'Triagem: peso e medidas registrados; Mapa do Passo aplicado (dado de demonstração).', 'Orientações previamente definidas pelo Dr. André reforçadas.', [['Registrar episódios de cólica por 1 semana', false]]),
+  ...history('p-sophia', '2026-01-10', [1, 2, 3, 4, 5]),
+  fu('p-alice', 1, '2026-09-20', CONSULTA, 'Encontro do passo 1 registrado (dado de demonstração).', 'Orientações do passo 1 entregues à família.', [['Teste da orelhinha', false]]),
+  ...history('p-gabriel', '2025-08-15', [1, 2, 3, 4, 5, 6, 7, 8, 9]),
+  ...history('p-miguel', '2024-11-20', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
+  ...history('p-theo', '2025-03-10', [1, 2, 3, 4, 5, 6, 7, 8]),
 ]
 
 const ap = (id: string, patientId: string, date: string, time: string, kind: string, status: Appointment['status'] = 'Agendado', professional = 'Dr. André'): Appointment => ({ id, patientId, date, time, kind, professional, status })
 
 const appointments: Appointment[] = [
-  ap('a1', 'p-laura', TODAY, '08:00', 'Acompanhamento — Passo 3'),
-  ap('a2', 'p-gabriel', TODAY, '08:40', 'Acompanhamento — Passo 1 (1–2 anos)'),
-  ap('a3', 'p-helena', TODAY, '09:20', 'Avaliação de crescimento'),
-  ap('a4', 'p-miguel', TODAY, '10:00', 'Acompanhamento — Passo 5 (1–2 anos)'),
-  ap('a5', 'p-pedro', TODAY, '14:30', 'Consulta avulsa'),
-  ap('a6', 'p-sophia', '2026-10-08', '09:00', 'Acompanhamento — Passo 6'),
-  ap('a7', 'p-alice', '2026-10-12', '10:30', 'Acompanhamento — Passo 2'),
-  ap('a8', 'p-laura', '2026-10-28', '08:00', 'Vacinas dos 4 meses', 'Agendado', 'Enfermagem'),
-  ap('a9', 'p-theo', '2026-10-15', '16:00', 'Consulta avulsa'),
-  ap('a10', 'p-laura', '2026-08-05', '08:00', 'Acompanhamento — Passo 2', 'Realizado'),
-  ap('a11', 'p-alice', '2026-09-20', '11:00', 'Acompanhamento — Passo 1', 'Realizado'),
+  ap('a1', 'p-laura', TODAY, '08:00', 'Encontro do Passo 3 — consulta'),
+  ap('a2', 'p-gabriel', TODAY, '08:40', 'Encontro do Passo 10 — triagem', 'Agendado', 'Equipe (técnica de enfermagem)'),
+  ap('a3', 'p-helena', TODAY, '09:20', 'Consulta'),
+  ap('a4', 'p-miguel', TODAY, '10:00', 'Encontro do Passo 16 — consulta'),
+  ap('a5', 'p-pedro', TODAY, '14:30', 'Consulta (sem programa)'),
+  ap('a6', 'p-sophia', '2026-10-08', '09:00', 'Encontro do Passo 6 — triagem', 'Agendado', 'Equipe (técnica de enfermagem)'),
+  ap('a7', 'p-alice', '2026-10-12', '10:30', 'Encontro do Passo 1 — triagem', 'Agendado', 'Equipe (técnica de enfermagem)'),
+  ap('a8', 'p-laura', '2026-10-28', '08:00', 'Vacinas dos 4 meses', 'Agendado', 'Equipe (técnica de enfermagem)'),
+  ap('a9', 'p-theo', '2026-10-15', '16:00', 'Consulta'),
+  ap('a10', 'p-laura', '2026-08-05', '08:00', 'Encontro do Passo 2 — triagem', 'Realizado', 'Equipe (técnica de enfermagem)'),
+  ap('a11', 'p-alice', '2026-09-20', '11:00', 'Encontro do Passo 1 — consulta', 'Realizado'),
 ]
 
-const msg = (from: 'family' | 'team', author: string, text: string, at: string) => ({ id: `${at}-${author}`, from, author, text, at })
+const fam = (author: string, text: string, at: string) => ({ id: `${at}-${author}`, from: 'family' as const, author, text, at })
+const team = (author: string, authorRole: string, text: string, at: string) => ({ id: `${at}-${author}`, from: 'team' as const, author, authorRole, text, at })
 
+/* Caixa de mensagens Crescer: uma conversa por família; Dr. André e secretaria respondem. */
 const conversations: Conversation[] = [
   {
-    id: 'c-laura-equipe', patientId: 'p-laura', channel: 'Equipe Crescer', readByTeam: true, readByFamily: false,
+    id: 'c-laura', patientId: 'p-laura', readByTeam: false, readByFamily: true, needsDoctor: true,
     messages: [
-      msg('team', 'Marina Costa', 'Olá, Ana! Tudo bem? Passando para lembrar que a próxima consulta da Laura está agendada para 06/10 às 08:00. Qualquer dúvida, estamos à disposição! 😊', '2026-10-05T10:24'),
-      msg('family', 'Ana Beatriz Mendes', 'Obrigada! Vamos confirmar.', '2026-10-05T10:32'),
+      fam('Ana Beatriz Mendes', 'Dr. André, a Laura completou 3 meses. Posso começar a deixá-la mais tempo de bruços?', '2026-09-22T19:40'),
+      team('Dr. André', 'Médico', 'Oi, Ana! Pode sim, sempre acordada e com alguém por perto. Conversamos mais no encontro do passo 3.', '2026-09-23T08:10'),
+      team('Marina Costa', 'Secretaria', 'Olá, Ana! Lembrando que o encontro do passo 3 da Laura está agendado para 06/10 às 08:00. 😊', '2026-10-05T10:24'),
+      fam('Ana Beatriz Mendes', 'Obrigada! Vamos confirmar. Uma dúvida: ela está golfando mais depois das mamadas, é normal?', '2026-10-05T21:10'),
     ],
   },
   {
-    id: 'c-laura-dr', patientId: 'p-laura', channel: 'Dr. André', readByTeam: false, readByFamily: true,
+    id: 'c-sophia', patientId: 'p-sophia', readByTeam: false, readByFamily: true,
+    messages: [fam('Fernanda Costa', 'Bom dia! Conseguimos remarcar o encontro desta semana para quinta à tarde?', '2026-10-06T07:45')],
+  },
+  {
+    id: 'c-gabriel', patientId: 'p-gabriel', readByTeam: true, readByFamily: true,
     messages: [
-      msg('family', 'Ana Beatriz Mendes', 'Dr. André, a Laura está golfando um pouco mais depois das mamadas. É normal nessa fase?', '2026-10-04T21:10'),
+      fam('Carolina Souza', 'O Gabriel está recusando legumes. Alguma dica?', '2026-09-28T19:02'),
+      team('Dr. André', 'Médico', 'Oi, Carolina! Vamos conversar sobre isso no encontro do passo 10. Até lá, continue oferecendo sem pressão.', '2026-09-29T08:15'),
     ],
   },
   {
-    id: 'c-laura-nutri', patientId: 'p-laura', channel: 'Nutrição', readByTeam: true, readByFamily: true,
-    messages: [msg('team', 'Equipe de Nutrição', 'Oi, Ana! Quando chegar o passo 4 vamos montar juntas o plano de introdução alimentar.', '2026-10-01T14:00')],
+    id: 'c-miguel', patientId: 'p-miguel', readByTeam: true, readByFamily: true,
+    messages: [team('Marina Costa', 'Secretaria', 'Renata, confirmamos o encontro do Miguel para hoje às 10:00.', '2026-10-03T11:00')],
   },
   {
-    id: 'c-sophia-equipe', patientId: 'p-sophia', channel: 'Equipe Crescer', readByTeam: false, readByFamily: true,
-    messages: [msg('family', 'Fernanda Costa', 'Bom dia! Conseguimos remarcar a vacina da gripe para essa semana?', '2026-10-06T07:45')],
-  },
-  {
-    id: 'c-gabriel-dr', patientId: 'p-gabriel', channel: 'Dr. André', readByTeam: true, readByFamily: true,
+    id: 'c-theo', patientId: 'p-theo', readByTeam: true, readByFamily: true,
     messages: [
-      msg('family', 'Carolina Souza', 'O Gabriel está recusando legumes. Alguma dica?', '2026-09-28T19:02'),
-      msg('team', 'Dr. André', 'Oi, Carolina! É esperado nessa fase. Continue oferecendo sem pressão, várias vezes, e comam juntos. Conversamos no encontro.', '2026-09-29T08:15'),
+      fam('Lucas Ribeiro', 'Obrigado pelo acompanhamento deste primeiro ano!', '2026-03-05T18:20'),
+      team('Marina Costa', 'Secretaria', 'Nós que agradecemos, Lucas! Qualquer coisa, estamos por aqui.', '2026-03-06T09:00'),
     ],
-  },
-  {
-    id: 'c-miguel-equipe', patientId: 'p-miguel', channel: 'Equipe Crescer', readByTeam: true, readByFamily: true,
-    messages: [msg('team', 'Marina Costa', 'Renata, confirmamos o encontro do Miguel para hoje às 10:00.', '2026-10-03T11:00')],
   },
 ]
 
-const c = (id: string, type: Content['type'], title: string, summary: string, body: string, programId: string, step: number, url?: string, createdAt = '2026-09-01'): Content =>
-  ({ id, type, title, summary, body, programId, step, url, createdAt, author: 'Dr. André', published: true })
+const c = (id: string, type: Content['type'], title: string, summary: string, body: string, step: number, url?: string, programId = 'mpp'): Content =>
+  ({ id, type, title, summary, body, programId, step, url, createdAt: '2026-09-01', author: 'Conteúdo de demonstração', published: true })
 
+/* Conteúdos de DEMONSTRAÇÃO para mostrar a liberação por etapa — substituir pelos materiais da clínica. */
 const contents: Content[] = [
-  c('ct1', 'texto', 'Amamentação: a pega correta', 'Como saber se a pega está boa e quando procurar ajuda.', 'A boca do bebê deve abocanhar boa parte da aréola, com lábios virados para fora e queixo encostado na mama.\n\nSinais de pega adequada: bochechas arredondadas, deglutição audível e ausência de dor persistente.\n\nProcure a equipe se houver fissuras, dor intensa ou pouco ganho de peso.', 'pp-0-1', 1),
-  c('ct2', 'video', 'Sono seguro do recém-nascido', 'Vídeo curto com as principais recomendações.', 'Bebês devem dormir de barriga para cima, em superfície firme, sem travesseiros, protetores ou bichos de pelúcia.', 'pp-0-1', 1, 'https://www.youtube.com/watch?v=0wO1T3bOs3s'),
-  c('ct3', 'imagem', 'Guia visual: cólicas', 'Infográfico com massagem e posições de alívio.', 'Movimentos circulares no sentido horário, “bicicletinha” com as pernas e posição de “tigre no galho”.', 'pp-0-1', 2),
-  c('ct4', 'texto', 'Tummy time: por que e como', 'Fortalecimento de pescoço e tronco.', 'Comece com 1 a 2 minutos várias vezes ao dia e aumente aos poucos. Sempre acordado e supervisionado.', 'pp-0-1', 2),
-  c('ct5', 'video', 'Como estimular o desenvolvimento', 'Brincadeiras simples para 3 a 4 meses.', 'Chocalhos, espelho, músicas e conversas olhando nos olhos estimulam a interação.', 'pp-0-1', 3, 'https://www.youtube.com/watch?v=3wR0oJx0qAk'),
-  c('ct6', 'texto', 'Marcos não são datas', 'Como lidar com a comparação entre bebês.', 'Os marcos do desenvolvimento acontecem dentro de janelas de tempo. Comparar com outros bebês costuma gerar ansiedade desnecessária. Converse com a equipe sobre qualquer dúvida.', 'pp-0-1', 3),
-  c('ct7', 'imagem', 'Refluxo: posições após mamadas', 'Ilustração das posições recomendadas.', 'Mantenha o bebê em posição elevada por 20–30 minutos após as mamadas.', 'pp-0-1', 3),
-  c('ct8', 'video', 'Rotina de sono dos 3 aos 6 meses', 'Construindo um ritual de sono.', 'Ritual curto e previsível: banho, mamada, música calma, berço.', 'pp-0-1', 4, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
-  c('ct9', 'texto', 'Introdução alimentar na prática', 'Primeira semana, utensílios e consistência.', 'Comece com legumes amassados e frutas. Ofereça água. Sem açúcar e sem mel antes de 1 ano.', 'pp-0-1', 5),
-  c('ct10', 'texto', 'Segurança da casa', 'Checklist de segurança para bebês que engatinham.', 'Protetores de tomada, travas de gaveta, portões em escadas e produtos de limpeza fora do alcance.', 'pp-0-1', 6),
-  c('ct11', 'texto', 'Birras: o que fazer', 'Limites gentis e firmes.', 'Nomeie a emoção, mantenha o limite e ofereça escolhas simples.', 'pp-1-2', 4),
-  c('ct12', 'video', 'Leitura compartilhada', 'Como ler com crianças pequenas.', 'Aponte figuras, imite sons e deixe a criança virar as páginas.', 'pp-1-2', 2, 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'),
-  c('ct13', 'texto', 'Sinais de alerta: quando procurar atendimento', 'Febre, desidratação, dificuldade para respirar.', 'Procure atendimento imediato se houver febre em menores de 3 meses, dificuldade para respirar, sonolência excessiva ou sinais de desidratação.', 'all', 0),
+  c('ct1', 'texto', 'Boas-vindas ao passo 1', 'Material de exemplo do passo 1.', 'Texto de demonstração. Os materiais reais de cada passo serão cadastrados pela equipe do Dr. André.', 1),
+  c('ct2', 'video', 'Vídeo do passo 1', 'Vídeo de exemplo.', 'Vídeo de demonstração.', 1, 'https://www.youtube.com/watch?v=0wO1T3bOs3s'),
+  c('ct3', 'imagem', 'Material visual do passo 2', 'Imagem de exemplo.', 'Imagem de demonstração.', 2),
+  c('ct4', 'texto', 'Leitura do passo 2', 'Texto de exemplo.', 'Texto de demonstração.', 2),
+  c('ct5', 'video', 'Como estimular o desenvolvimento', 'Vídeo de exemplo do passo 3.', 'Vídeo de demonstração.', 3, 'https://www.youtube.com/watch?v=3wR0oJx0qAk'),
+  c('ct6', 'texto', 'Marcos não são datas', 'Texto de exemplo do passo 3.', 'Texto de demonstração.', 3),
+  c('ct7', 'imagem', 'Material visual do passo 3', 'Imagem de exemplo do passo 3.', 'Imagem de demonstração.', 3),
+  c('ct8', 'video', 'Vídeo do passo 4', 'Vídeo de exemplo.', 'Vídeo de demonstração.', 4, 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'),
+  c('ct9', 'texto', 'Leitura do passo 6', 'Texto de exemplo.', 'Texto de demonstração.', 6),
+  c('ct10', 'texto', 'Leitura do passo 10', 'Texto de exemplo do Ano 2.', 'Texto de demonstração.', 10),
+  c('ct11', 'video', 'Vídeo do passo 16', 'Vídeo de exemplo do Ano 2.', 'Vídeo de demonstração.', 16, 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'),
+  c('ct12', 'texto', 'Conteúdo geral do Crescer', 'Conteúdo aberto a todas as famílias (exemplo).', 'Texto de demonstração. Quais conteúdos ficam disponíveis no acesso gratuito ainda será definido com o Dr. André.', 0, undefined, 'all'),
 ]
 
 export const createSeed = (): AppState => ({
   version: STATE_VERSION,
   users: [
-    { id: 'u-andre', name: 'Dr. André', email: 'andre@crescer.med.br', role: 'doctor', title: 'Pediatra', active: true },
+    { id: 'u-andre', name: 'Dr. André', email: 'andre@crescer.med.br', role: 'doctor', title: 'Médico e proprietário', active: true },
     { id: 'u-marina', name: 'Marina Costa', email: 'secretaria@crescer.med.br', role: 'secretary', title: 'Secretaria', active: true },
     { id: 'u-rafael', name: 'Rafael Torres', email: 'admin@crescer.med.br', role: 'admin', title: 'Administrador', active: true },
     { id: 'u-ana', name: 'Ana Beatriz Mendes', email: 'ana.mendes@email.com', role: 'parent', title: 'Mãe da Laura', active: true, patientIds: ['p-laura'] },
     { id: 'u-carolina', name: 'Carolina Souza', email: 'carolina.souza@email.com', role: 'parent', title: 'Mãe do Gabriel', active: true, patientIds: ['p-gabriel'] },
     { id: 'u-juliana', name: 'Juliana Lima', email: 'juliana.lima@email.com', role: 'parent', title: 'Mãe da Helena', active: true, patientIds: ['p-helena'] },
     { id: 'u-paulo', name: 'Paulo Almeida', email: 'paulo.almeida@email.com', role: 'parent', title: 'Pai do Pedro', active: true, patientIds: ['p-pedro'] },
+    { id: 'u-lucas', name: 'Lucas Ribeiro', email: 'lucas.ribeiro@email.com', role: 'parent', title: 'Pai do Theo', active: true, patientIds: ['p-theo'] },
   ],
   patients,
   programs: structuredClone(DEFAULT_PROGRAMS),
@@ -204,5 +217,5 @@ export const createSeed = (): AppState => ({
   growth,
   appointments,
   conversations,
-  stepProgress: { 'p-laura:pp-0-1:3': [0, 1] },
+  stepProgress: { 'p-laura:mpp:3': [0] },
 })

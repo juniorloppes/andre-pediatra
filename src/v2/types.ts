@@ -36,51 +36,83 @@ export interface Patient {
   notes?: string
 }
 
+/** Item do Mapa do Passo: pergunta objetiva SIM/NÃO, agrupada por pilar. */
+export interface MapItem {
+  pillar: string
+  question: string
+}
+
+/** Situação do texto do passo em relação ao documento "Meus Primeiros Passos". */
+export type StepSource = 'documento' | 'pendente' | 'demonstrativo'
+
 export interface ProgramStep {
   n: number
   startDay: number
   endDay: number
+  /** Faixa como o documento escreve (ex.: "12 a 13,5 meses") */
+  rangeLabel: string
+  /** Tema central do passo */
   title: string
-  subtitle: string
+  challenges: string[]
+  /** Encontro do passo: consulta com o médico ou triagem com a equipe */
+  encounter: string
+  map: MapItem[]
   goal: string
-  themes: string[]
-  orientations: string[]
-  checklist: string[]
-  challenge: string
+  parentChallenge: string
   celebration: string
+  source: StepSource
 }
 
+/** Contrato vendável de um programa (ex.: Ano 1 e Ano 2 do Meus Primeiros Passos). */
+export interface ProgramContract {
+  id: string
+  label: string
+  fromStep: number
+  toStep: number
+  durationMonths: number
+  price: number
+}
+
+/** Programa = produto que pode ser vendido para uma criança/família. */
 export interface Program {
   id: string
   name: string
   ageLabel: string
-  /** Idade (dias) em que o programa começa e termina */
+  description: string
   startAgeDays: number
   endAgeDays: number
-  /** Intervalo entre encontros de acompanhamento (dias) */
-  cadenceDays: number
-  price: number
-  description: string
+  /** Duração de cada passo (dias) */
+  stepDays: number
   active: boolean
+  benefits: string[]
+  contracts: ProgramContract[]
   steps: ProgramStep[]
 }
 
-export type SaleStatus = 'Pago' | 'Pendente' | 'Cancelado'
-export type PaymentMethod = 'PIX' | 'Cartão de crédito' | 'Boleto' | 'Dinheiro' | 'Transferência'
+export type PaymentStatus = 'Pendente' | 'Pago' | 'Cancelado'
+export type PaymentMethod = 'PIX' | 'Cartão de crédito' | 'Boleto' | 'Transferência' | 'Dinheiro' | 'A definir'
 
 export interface Sale {
   id: string
   patientId: string
   programId: string
+  contractId: string
   listPrice: number
   discount: number
+  /** Forma de pagamento — dado demonstrativo (formas reais a definir com Dr. André) */
   payment: PaymentMethod
   installments: number
   saleDate: string
+  /** Início e fim da vigência do programa */
   startDate: string
-  status: SaleStatus
+  endDate: string
+  paymentStatus: PaymentStatus
+  paidAt?: string
   createdBy: string
 }
+
+/** Situação do programa vendido, derivada da venda + datas. */
+export type ProgramStatus = 'Pagamento pendente' | 'Programa ativo' | 'Aguardando início' | 'Programa encerrado' | 'Cancelado'
 
 export interface Pendency {
   id: string
@@ -89,16 +121,23 @@ export interface Pendency {
   familyVisible: boolean
 }
 
+export type EncounterKind = 'Consulta com o Dr. André' | 'Triagem com a equipe'
+
 export interface FollowUp {
   id: string
   patientId: string
   programId: string
   step: number
+  kind: EncounterKind
   date: string
   author: string
+  /** Respostas do Mapa do Passo (índice do item → SIM/NÃO) */
+  mapAnswers: Record<number, 'SIM' | 'NÃO'>
   evolution: string
   orientations: string
   pendencies: Pendency[]
+  /** Sinalizado para avaliação do Dr. André (equipe não decide conduta) */
+  flaggedForDoctor?: boolean
 }
 
 export type ContentType = 'texto' | 'imagem' | 'video'
@@ -122,7 +161,6 @@ export interface VaccineDose {
   vaccine: string
   dose: string
   ageMonths: number
-  network: 'SUS + particular' | 'Particular'
   notes?: string
 }
 
@@ -158,21 +196,25 @@ export interface Message {
   id: string
   from: 'family' | 'team'
   author: string
+  /** Para respostas da equipe: "Dr. André", "Secretaria"… */
+  authorRole?: string
   text: string
   at: string // ISO datetime
 }
 
+/** Caixa de mensagens Crescer: uma conversa por criança/família. */
 export interface Conversation {
   id: string
   patientId: string
-  channel: 'Equipe Crescer' | 'Dr. André' | 'Nutrição'
   messages: Message[]
   readByTeam: boolean
   readByFamily: boolean
+  /** Sinalizada para o Dr. André (assunto clínico) */
+  needsDoctor?: boolean
 }
 
 export interface StepProgress {
-  /** chave `${patientId}:${programId}:${step}` → itens de checklist marcados */
+  /** chave `${patientId}:${programId}:${step}` → itens marcados pela família */
   [key: string]: number[]
 }
 

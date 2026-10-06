@@ -47,7 +47,7 @@ export function Agenda() {
 
   return (
     <>
-      <PageHeader title="Agenda" subtitle="Consultas e encontros de acompanhamento."
+      <PageHeader title="Agenda" subtitle="Encontros do passo (consulta com o Dr. André ou triagem com a equipe) e demais atendimentos."
         actions={<button className="btn btn-primary" onClick={() => setCreating(true)}><Plus size={16} /> Agendar</button>} />
       <div className="grid-2 wide-left">
         <Card title={
@@ -96,7 +96,7 @@ export function Agenda() {
 
 function AppointmentForm({ date, onClose }: { date: string; onClose: () => void }) {
   const { state, update, toast } = useStore()
-  const [f, setF] = useState({ patientId: '', date: date < TODAY ? TODAY : date, time: '09:00', kind: 'Acompanhamento', professional: 'Dr. André' })
+  const [f, setF] = useState({ patientId: '', date: date < TODAY ? TODAY : date, time: '09:00', kind: 'Encontro do passo — consulta', professional: 'Dr. André' })
   const [error, setError] = useState('')
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value })
 
@@ -122,10 +122,10 @@ function AppointmentForm({ date, onClose }: { date: string; onClose: () => void 
         <Field label="Data"><input type="date" value={f.date} min={TODAY} onChange={set('date')} /></Field>
         <Field label="Horário"><input type="time" value={f.time} onChange={set('time')} /></Field>
         <Field label="Tipo">
-          <select value={f.kind} onChange={set('kind')}>{['Acompanhamento', 'Consulta avulsa', 'Avaliação de crescimento', 'Vacinação', 'Retorno'].map((k) => <option key={k}>{k}</option>)}</select>
+          <select value={f.kind} onChange={set('kind')}>{['Encontro do passo — consulta', 'Encontro do passo — triagem', 'Consulta', 'Vacinação', 'Pesagem e medidas'].map((k) => <option key={k}>{k}</option>)}</select>
         </Field>
         <Field label="Profissional">
-          <select value={f.professional} onChange={set('professional')}>{['Dr. André', 'Enfermagem', 'Nutrição'].map((k) => <option key={k}>{k}</option>)}</select>
+          <select value={f.professional} onChange={set('professional')}>{['Dr. André', 'Equipe (técnica de enfermagem)'].map((k) => <option key={k}>{k}</option>)}</select>
         </Field>
         {error && <p className="form-error field-full">{error}</p>}
       </form>

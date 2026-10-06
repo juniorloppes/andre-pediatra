@@ -5,10 +5,10 @@ import type { Role } from '../types'
 import { Logo } from '../ui'
 
 const PROFILES: Array<{ role: Role; label: string; sub: string; userId: string; icon: typeof Stethoscope }> = [
-  { role: 'doctor', label: 'Médico', sub: 'Dr. André', userId: 'u-andre', icon: Stethoscope },
+  { role: 'doctor', label: 'Médico', sub: 'Dr. André · acesso total', userId: 'u-andre', icon: Stethoscope },
   { role: 'secretary', label: 'Secretaria', sub: 'Marina Costa', userId: 'u-marina', icon: UserRound },
   { role: 'admin', label: 'Administrador', sub: 'Rafael Torres', userId: 'u-rafael', icon: ShieldCheck },
-  { role: 'parent', label: 'Responsável', sub: 'Ana (mãe da Laura)', userId: 'u-ana', icon: HeartHandshake },
+  { role: 'parent', label: 'Responsável', sub: 'Ana · programa ativo', userId: 'u-ana', icon: HeartHandshake },
 ]
 
 export function Login() {
@@ -71,7 +71,8 @@ export function Login() {
           Outras famílias:{' '}
           <button className="link-btn" onClick={() => login('u-paulo')}>Paulo (sem programa)</button>{' · '}
           <button className="link-btn" onClick={() => login('u-juliana')}>Juliana (pagamento pendente)</button>{' · '}
-          <button className="link-btn" onClick={() => login('u-carolina')}>Carolina (1–2 anos)</button>
+          <button className="link-btn" onClick={() => login('u-lucas')}>Lucas (programa encerrado)</button>{' · '}
+          <button className="link-btn" onClick={() => login('u-carolina')}>Carolina (Ano 2)</button>
         </p>
       </section>
     </div>

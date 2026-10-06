@@ -32,22 +32,34 @@ const loadSession = (): Session | null => {
 /* ------------------------------------------------------------------ */
 
 export const ROLE_LABEL: Record<Role, string> = {
+  doctor: 'Médico · proprietário',
+  secretary: 'Secretaria',
+  admin: 'Administrador',
+  parent: 'Responsável',
+}
+
+/** Rótulo usado para identificar quem respondeu uma mensagem. */
+export const ROLE_REPLY_LABEL: Record<Role, string> = {
   doctor: 'Médico',
   secretary: 'Secretaria',
   admin: 'Administrador',
   parent: 'Responsável',
 }
 
+/*
+ * Dr. André é médico E proprietário: acesso total (clínico, comercial, financeiro e usuários).
+ * Secretaria: operação (famílias, agenda, vendas, pagamentos, programas, mensagens) — sem decisões clínicas.
+ */
 export const NAV: Record<Role, Page[]> = {
-  doctor: ['home', 'patients', 'agenda', 'programs', 'followup', 'contents', 'growth', 'vaccines', 'messages', 'reports'],
-  secretary: ['home', 'patients', 'agenda', 'sales', 'programs', 'vaccines', 'messages', 'reports'],
+  doctor: ['home', 'patients', 'agenda', 'programs', 'followup', 'contents', 'growth', 'vaccines', 'messages', 'sales', 'reports', 'users'],
+  secretary: ['home', 'patients', 'agenda', 'sales', 'programs', 'followup', 'vaccines', 'messages', 'reports'],
   admin: ['home', 'patients', 'agenda', 'sales', 'programs', 'followup', 'contents', 'growth', 'vaccines', 'messages', 'reports', 'users'],
   parent: ['home', 'child', 'my-program', 'growth', 'vaccines', 'messages', 'materials', 'agenda'],
 }
 
 /** Páginas acessíveis além das que aparecem no menu. */
 const EXTRA: Record<Role, Page[]> = {
-  doctor: ['patient', 'program'],
+  doctor: ['patient', 'program', 'new-sale'],
   secretary: ['patient', 'program', 'new-sale'],
   admin: ['patient', 'program', 'new-sale'],
   parent: [],
@@ -55,7 +67,7 @@ const EXTRA: Record<Role, Page[]> = {
 
 export const can = (role: Role, page: Page) => NAV[role].includes(page) || EXTRA[role].includes(page)
 
-/** Quem pode editar conteúdo clínico (acompanhamento, programas, conteúdos). */
+/** Quem registra conteúdo clínico do acompanhamento e edita programas/conteúdos. */
 export const isClinical = (role: Role) => role === 'doctor' || role === 'admin'
 export const isStaff = (role: Role) => role !== 'parent'
 

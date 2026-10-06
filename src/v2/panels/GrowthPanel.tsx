@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Info, MapPin, Plus, Trash2 } from 'lucide-react'
+import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { curveRows, METRIC_LABEL, PERCENTILES, percentileBand, type Metric } from '../reference'
 import { useStore } from '../store'
 import type { Patient } from '../types'
@@ -14,6 +14,7 @@ export function GrowthPanel({ patient, canEdit }: { patient: Patient; canEdit: b
   const { state, update, toast } = useStore()
   const [metric, setMetric] = useState<Metric>('weight')
   const [adding, setAdding] = useState(false)
+  const [showMarkers, setShowMarkers] = useState(true)
 
   const records = useMemo(() => state.growth.filter((g) => g.patientId === patient.id).sort((a, b) => a.date.localeCompare(b.date)), [state.growth, patient.id])
   const curves = useMemo(() => curveRows(patient.sex, metric), [patient.sex, metric])
@@ -23,6 +24,16 @@ export function GrowthPanel({ patient, canEdit }: { patient: Patient; canEdit: b
   const last = records[records.length - 1]
   const lastValue = last && (metric === 'bmi' ? bmi(last.weight, last.height) : last[metric])
   const { unit, label } = METRIC_LABEL[metric]
+  /*
+   * Marcadores na linha do tempo — DEMONSTRAÇÃO do conceito "curva + eventos".
+   * Usa apenas os encontros do programa já registrados (não são eventos clínicos).
+   * Quais eventos o Dr. André quer correlacionar, quem registra e a origem (Crescer ou Clínica Experts) ainda serão definidos.
+   */
+  const markers = state.followUps
+    .filter((f) => f.patientId === patient.id)
+    .map((f) => ({ id: f.id, m: +ageMonthsExact(patient.birthDate, f.date).toFixed(2), date: f.date, label: `Passo ${f.step}`, text: `Encontro do passo ${f.step} — ${f.kind}` }))
+    .filter((x) => x.m <= 24.5)
+    .sort((a, b) => a.m - b.m)
 
   const remove = (id: string) => {
     if (!confirm('Excluir esta medição?')) return
@@ -46,6 +57,9 @@ export function GrowthPanel({ patient, canEdit }: { patient: Patient; canEdit: b
                 <YAxis domain={['auto', 'auto']} fontSize={11} width={44} unit={metric === 'bmi' ? '' : ` ${unit}`} />
                 <Tooltip formatter={(v) => `${fmt(Number(v), metric === 'weight' ? 2 : 1)} ${unit}`} labelFormatter={(m) => `${fmt(Number(m), 1)} meses`} />
                 <Legend verticalAlign="bottom" height={28} iconType="plainline" wrapperStyle={{ fontSize: 11 }} />
+                {showMarkers && markers.map((mk) => (
+                  <ReferenceLine key={mk.id} x={mk.m} stroke="#b9a7e6" strokeDasharray="3 3" label={{ value: mk.label, position: 'top', fontSize: 9, fill: '#7766b8' }} />
+                ))}
                 {PERCENTILES.map((p) => (
                   <Line key={p} data={curves} dataKey={p} name={p} stroke={PCT_COLORS[p]} dot={false} strokeWidth={p === 'P50' ? 2 : 1.4} isAnimationActive={false} />
                 ))}
@@ -55,7 +69,7 @@ export function GrowthPanel({ patient, canEdit }: { patient: Patient; canEdit: b
           </div>
           <aside className="chart-aside">
             <h4>Curvas ({patient.sex === 'F' ? 'meninas' : 'meninos'})</h4>
-            <p className="muted small">Referência OMS 0–2 anos (valores aproximados para demonstração).</p>
+            <p className="muted small">Valores APROXIMADOS de demonstração (base OMS 0–2 anos). Substituir pelas tabelas oficiais antes de uso clínico.</p>
             {last ? (
               <div className="last-measure">
                 <small>Última medição · {fmtDate(last.date)}</small>
@@ -65,6 +79,13 @@ export function GrowthPanel({ patient, canEdit }: { patient: Patient; canEdit: b
             ) : <p className="muted small">Sem medições de {label.toLowerCase()}.</p>}
           </aside>
         </div>
+        {markers.length > 0 && (
+          <div className="markers">
+            <label className="check"><input type="checkbox" checked={showMarkers} onChange={(e) => setShowMarkers(e.target.checked)} /> <MapPin size={14} /> Marcadores na linha do tempo <span className="badge badge-gray">demonstração</span></label>
+            {showMarkers && <ul>{markers.map((mk) => <li key={mk.id} title={mk.text}><b>{fmtDate(mk.date)}</b> {mk.text}</li>)}</ul>}
+            <p className="demo-note"><Info size={12} /> Conceito para validar com o Dr. André: quais eventos/informações devem aparecer correlacionados ao gráfico. Aqui são usados apenas os encontros do programa.</p>
+          </div>
+        )}
       </Card>
 
       <Card title="Medições">
