@@ -61,7 +61,7 @@ export function ProgramDetail() {
   const program = state.programs.find((p) => p.id === route.id)
   const [editing, setEditing] = useState(false)
   const [editingStep, setEditingStep] = useState<ProgramStep | null>(null)
-  if (!program || !user) return <Empty title="Programa não encontrado" />
+  if (!program || !user) return <Empty title="Programa não encontrado" action={<button className="btn btn-ghost" onClick={() => go('programs')}>Ver programas</button>} />
   const canEdit = isClinical(user.role)
   const enrolled = state.patients.map((p) => ({ p, enr: activeEnrollment(state, p.id) })).filter((x) => x.enr?.program.id === program.id)
   const pendingCount = program.steps.filter((s) => s.source !== 'documento').length

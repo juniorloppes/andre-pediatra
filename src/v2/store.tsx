@@ -5,6 +5,16 @@ import type { AppState, Page, Role, Route, User } from './types'
 const STATE_KEY = 'crescer-v2-data'
 const SESSION_KEY = 'crescer-v2-session'
 
+/** Dados salvos são da versão atual? (lido uma vez, antes de qualquer gravação) */
+const storedDataIsCurrent = (() => {
+  try {
+    const raw = localStorage.getItem(STATE_KEY)
+    return raw ? (JSON.parse(raw) as AppState).version === STATE_VERSION : true
+  } catch {
+    return false
+  }
+})()
+
 const load = (): AppState => {
   try {
     const raw = localStorage.getItem(STATE_KEY)
@@ -21,7 +31,10 @@ interface Session { userId: string; route: Route; patientId?: string }
 const loadSession = (): Session | null => {
   try {
     const raw = localStorage.getItem(SESSION_KEY)
-    return raw ? JSON.parse(raw) as Session : null
+    const session = raw ? JSON.parse(raw) as Session : null
+    // Dados de uma versão anterior foram substituídos: a rota salva pode apontar para ids que não
+    // existem mais (ex.: programas da V2). Mantém o login, mas recomeça pelo Início.
+    return session && !storedDataIsCurrent ? { ...session, route: { page: 'home' } } : session
   } catch {
     return null
   }
