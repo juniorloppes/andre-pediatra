@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { createSeed, STATE_VERSION } from './seed'
 import type { AppState, Page, Role, Route, User } from './types'
 
-const STATE_KEY = 'crescer-v2-data'
-const SESSION_KEY = 'crescer-v2-session'
+const STATE_KEY = 'crescer-data'
+const SESSION_KEY = 'crescer-session'
 
 /** Dados salvos são da versão atual? (lido uma vez, antes de qualquer gravação) */
 const storedDataIsCurrent = (() => {

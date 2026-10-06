@@ -5,7 +5,7 @@ Protótipo front-end: os dados ficam no `localStorage` do navegador e podem ser 
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173  (V0 antiga em ?v0)
+npm run dev      # http://localhost:5173
 npm run build
 ```
 
@@ -51,7 +51,7 @@ Decisões ainda em aberto: [docs/V3-PENDENCIAS-DR-ANDRE.md](docs/V3-PENDENCIAS-D
 ## Estrutura
 
 ```
-src/v2/
+src/app/
   types.ts       modelo de dados
   reference.ts   programa (16 passos), sinalizadores, calendário SBP, curvas
   seed.ts        dados de demonstração
