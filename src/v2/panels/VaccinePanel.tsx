@@ -43,11 +43,11 @@ export function VaccinePanel({ patient, canEdit }: { patient: Patient; canEdit: 
               {shown.map((r) => (
                 <tr key={r.dose.id}>
                   <td>{ageText(r.dose.ageMonths)}</td>
-                  <td><strong>{r.dose.vaccine}</strong>{r.dose.network === 'Particular' && <small className="block muted">Rede particular</small>}</td>
+                  <td><strong>{r.dose.vaccine}</strong></td>
                   <td>{r.dose.dose}</td>
                   <td><StatusBadge status={r.status} /></td>
                   <td>{r.record ? fmtDate(r.record.date) : <span className="muted">prevista {fmtDate(r.due)}</span>}</td>
-                  <td className="muted small">{r.record?.place ?? r.dose.notes ?? '—'}</td>
+                  <td className="muted small">{r.dose.notes ?? r.record?.place ?? '—'}</td>
                   {canEdit && (
                     <td className="row-actions">
                       {r.record

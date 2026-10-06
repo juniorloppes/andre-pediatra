@@ -1,5 +1,5 @@
-import type { AppState, Content, Conversation, Patient, Role, User, VaccineDose, VaccineRecord } from './types'
-import { activeEnrollment, addMonths, ageMonthsExact, currentStepOf, diffDays, TODAY } from './utils'
+import type { AppState, Content, Conversation, Patient, User, VaccineDose, VaccineRecord } from './types'
+import { activeEnrollment, addMonths, currentStepOf, diffDays, TODAY } from './utils'
 
 export type VaccineStatus = 'Realizada' | 'Atrasada' | 'Pendente' | 'Próxima' | 'Futura'
 
@@ -11,8 +11,10 @@ export interface VaccineRow {
 }
 
 /**
- * Situação de cada dose para a criança:
- * Realizada · Atrasada (vencida há +30 dias) · Pendente (vencida até 30 dias) · Próxima (nos próximos 30 dias) · Futura.
+ * Situação de cada dose para a criança, a partir da idade recomendada no calendário SBP:
+ * Realizada · Atrasada (idade recomendada passou há +30 dias) · Pendente (passou até 30 dias)
+ * · Próxima (nos próximos 30 dias) · Futura.
+ * A janela de 30 dias é um critério de VISUALIZAÇÃO do protótipo, não regra clínica.
  */
 export const vaccineRows = (state: AppState, patient: Patient): VaccineRow[] =>
   state.vaccineCatalog
@@ -28,22 +30,31 @@ export const vaccineRows = (state: AppState, patient: Patient): VaccineRow[] =>
 export const pendingVaccines = (state: AppState, patient: Patient) =>
   vaccineRows(state, patient).filter((r) => r.status === 'Atrasada' || r.status === 'Pendente' || r.status === 'Próxima')
 
-/** Paciente "ativo" na clínica: tem programa pago ou ainda não completou 2 anos. */
-export const isPediatricAge = (p: Patient) => ageMonthsExact(p.birthDate) < 24.5
+/* ------------------------------------------------------------------ */
+/* Mensagens                                                           */
+/* ------------------------------------------------------------------ */
 
-export const conversationsFor = (state: AppState, user: User, childId?: string): Conversation[] => {
-  if (user.role === 'parent') return state.conversations.filter((c) => c.patientId === childId)
-  // A equipe só conversa com famílias que têm programa ativo.
-  return state.conversations.filter((c) => Boolean(activeEnrollment(state, c.patientId)))
-}
+/** REGRA CONFIRMADA: somente família com programa PAGO e ATIVO pode ENVIAR mensagens. */
+export const familyCanSend = (state: AppState, patientId: string) => Boolean(activeEnrollment(state, patientId))
+
+/** Caixa de mensagens Crescer: a equipe (Dr. André e secretaria) vê todas as conversas. */
+export const conversationsFor = (state: AppState, user: User, childId?: string): Conversation[] =>
+  user.role === 'parent' ? state.conversations.filter((c) => c.patientId === childId) : state.conversations
 
 export const unreadCount = (state: AppState, user: User, childId?: string) => {
   const list = conversationsFor(state, user, childId)
-  if (user.role === 'parent') return activeEnrollment(state, childId ?? '') ? list.filter((c) => !c.readByFamily).length : 0
-  return list.filter((c) => !c.readByTeam && (user.role !== 'secretary' || c.channel !== 'Dr. André')).length
+  return user.role === 'parent' ? list.filter((c) => !c.readByFamily).length : list.filter((c) => !c.readByTeam).length
 }
 
-/** Conteúdos visíveis para a criança: do programa ativo, até a etapa atual (inclui gerais). */
+/* ------------------------------------------------------------------ */
+/* Conteúdos                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Conteúdos visíveis para a criança: do programa ativo até a etapa atual, mais os gerais.
+ * Sem programa ativo: somente conteúdos gerais (o escopo do acesso gratuito ainda será
+ * validado com o Dr. André).
+ */
 export const contentsForChild = (state: AppState, patient: Patient): Array<Content & { current: boolean }> => {
   const enr = activeEnrollment(state, patient.id)
   if (!enr) return state.contents.filter((c) => c.published && c.programId === 'all').map((c) => ({ ...c, current: false }))
@@ -53,5 +64,3 @@ export const contentsForChild = (state: AppState, patient: Patient): Array<Conte
     .map((c) => ({ ...c, current: c.programId === enr.program.id && c.step === step }))
     .sort((a, b) => Number(b.current) - Number(a.current) || b.step - a.step)
 }
-
-export const canSeeChannel = (role: Role, channel: Conversation['channel']) => role !== 'secretary' || channel !== 'Dr. André'

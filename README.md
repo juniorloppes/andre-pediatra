@@ -1,4 +1,4 @@
-# Crescer — protótipo V2
+# Crescer — protótipo V3
 
 Plataforma de acompanhamento pediátrico do Dr. André (React + TypeScript + Vite, Recharts, Lucide).
 Protótipo front-end: os dados ficam no `localStorage` do navegador e podem ser restaurados pelo menu lateral ("Restaurar demonstração").
@@ -17,34 +17,43 @@ Publicado no GitHub Pages: https://juniorloppes.github.io/andre-pediatra/
 npm run deploy   # build + publica a pasta dist na branch gh-pages
 ```
 
+## O que é o Crescer
+
+Plataforma de **acompanhamento de programas pediátricos**. Não é prontuário: o prontuário clínico continua no **Clínica Experts**.
+
+Família (conta) → criança → **produto/programa** → venda → pagamento → **programa ativo** → passos, conteúdos e benefícios → vigência → renovação ou encerramento.
+
 ## Perfis de demonstração (tela de login)
 
 | Perfil | Usuário | Acesso |
 | --- | --- | --- |
-| Médico | Dr. André | Início, Pacientes, Agenda, Programas, Acompanhamento, Conteúdos, Crescimento, Vacinação, Mensagens, Relatórios |
-| Secretaria | Marina Costa | Início, Pacientes, Agenda, **Vendas**, Programas, Vacinação, Mensagens (exceto canal privado do Dr. André), Relatórios |
-| Administrador | Rafael Torres | Tudo + **Usuários** |
-| Responsável | Ana (Laura, 0–1 ano) | Início, Meu filho, Meu programa, Crescimento, Vacinas, Mensagens, Materiais, Agenda |
+| Médico | Dr. André (médico e proprietário) | **Total**: clínico, comercial, financeiro e usuários |
+| Secretaria | Marina Costa | Operação: famílias, agenda, vendas, pagamentos, programas, vacinação, mensagens e relatórios. Sem decisões clínicas |
+| Administrador | Rafael Torres | Total |
+| Responsável | Ana (programa ativo) | Meu filho, Meu programa, Crescimento, Vacinas, Mensagens, Materiais, Agenda |
 
-Famílias extras: Paulo (sem programa), Juliana (pagamento pendente), Carolina (programa 1–2 anos).
+Outras famílias: Paulo (sem programa), Juliana (pagamento pendente), Lucas (programa encerrado), Carolina (Ano 2).
 
-## Regras de negócio
+## Regras (V3)
 
-- **Programa ativo = venda com status Pago.** Pendente/Cancelado não liberam passos, materiais nem mensagens.
-- **Mensagens** só para famílias com programa ativo (a equipe também só enxerga essas famílias).
-- **Etapas** calculadas pela idade da criança em dias (0–1 ano: 8 passos de 45 dias; 1–2 anos: 6 passos de ~60 dias).
-  Situação do acompanhamento: Em dia · Encontro próximo (≤15 dias do fim do passo) · Atrasado (passo encerrado sem registro).
-- **Vacinas**: calendário SBP 2025/2026 (0–2 anos), editável em Vacinação → Vacinas cadastradas.
-  Status: Realizada · Atrasada (>30 dias) · Pendente · Próxima (≤30 dias) · Futura.
-- **Curvas de crescimento**: referência OMS 0–2 anos com percentis P3–P97 **aproximados** — substituir pelas tabelas LMS oficiais antes de uso clínico.
-- Data de referência da demonstração fixada em `TODAY` (`src/v2/utils.ts`).
+- **Meus Primeiros Passos:** 0 a 24 meses, **16 passos de 45 dias**, organizados em dois contratos anuais: **Ano 1** (passos 1–8) e **Ano 2** (passos 9–16). Títulos conforme o documento do Dr. André.
+- **Programa = produto.** Pode haver vários, cada um com contratos, valores, duração, passos, conteúdos e benefícios configuráveis.
+- **Programa ativo** = venda **paga** e **dentro da vigência**. Situações: Pagamento pendente · Programa ativo · Aguardando início · Programa encerrado · Cancelado.
+- **Conta ≠ programa:** toda família acessa o Crescer. **Somente famílias com programa pago e ativo podem enviar mensagens.**
+- **Mensagens:** uma caixa por família. O Dr. André e a secretaria respondem, e cada resposta mostra "Respondido por". Assuntos clínicos são sinalizados ao Dr. André.
+- **Encontro do passo:** consulta com o Dr. André **ou** triagem com a equipe. Cada encontro tem um **Mapa do Passo** (checklist SIM/NÃO).
+- **Sinalizadores de triagem** (fono, nutrição, psicologia, TO) aparecem como "Requer avaliação do Dr. André". Nunca como diagnóstico ou encaminhamento automático.
+- **Vacinas:** Calendário SBP 2025/2026 (Documento Científico nº 12), de 0 a 24 meses.
+- **Curvas de crescimento:** valores **aproximados de demonstração**. Substituir pelas tabelas oficiais antes de uso clínico.
+
+Decisões ainda em aberto: [docs/V3-PENDENCIAS-DR-ANDRE.md](docs/V3-PENDENCIAS-DR-ANDRE.md).
 
 ## Estrutura
 
 ```
 src/v2/
   types.ts       modelo de dados
-  reference.ts   programas, calendário vacinal, curvas
+  reference.ts   programa (16 passos), sinalizadores, calendário SBP, curvas
   seed.ts        dados de demonstração
   store.tsx      estado, sessão, permissões por perfil
   domain.ts      regras (vacinas, mensagens, conteúdos)

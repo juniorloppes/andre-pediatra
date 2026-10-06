@@ -6,7 +6,8 @@ import { GrowthPanel } from '../panels/GrowthPanel'
 import { VaccinePanel } from '../panels/VaccinePanel'
 import { isClinical, useStore } from '../store'
 import { Artwork, Card, Empty, StatusBadge, Tabs } from '../ui'
-import { activeEnrollment, ageLabel, finalPrice, fmtDate, money, TODAY } from '../utils'
+import { activeEnrollment, ageLabel, contractOf, finalPrice, fmtDate, money, programStatus, TODAY } from '../utils'
+import { ExpiryBadge } from './Sales'
 import { PatientForm, patientSituation } from './Patients'
 
 type Tab = 'overview' | 'followup' | 'growth' | 'vaccines' | 'sales'
@@ -20,7 +21,7 @@ export function PatientDetail() {
   const enr = activeEnrollment(state, patient.id)
   const sit = patientSituation(state, patient)
   const clinical = isClinical(user.role)
-  const sells = user.role !== 'doctor'
+  const sells = true // Dr. André (proprietário), secretaria e admin
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'overview', label: 'Visão geral' },
     ...(enr ? [{ id: 'followup' as Tab, label: 'Acompanhamento' }] : []),
@@ -43,11 +44,11 @@ export function PatientDetail() {
         <div>
           <h1>{patient.name}</h1>
           <p className="muted">{ageLabel(patient.birthDate)} · nascid{patient.sex === 'F' ? 'a' : 'o'} em {fmtDate(patient.birthDate)} · {patient.guardian} ({patient.guardianRelation.toLowerCase()})</p>
-          <p className="chips"><span className="tag">{sit.program}</span><StatusBadge status={sit.status === 'Pagamento pendente' ? 'Pendente' : sit.status} /></p>
+          <p className="chips"><span className="tag">{sit.program}{'contract' in sit && sit.contract ? ` · ${sit.contract}` : ''}</span><StatusBadge status={sit.status} />{'sale' in sit && sit.sale && <ExpiryBadge sale={sit.sale} />}</p>
         </div>
         <div className="page-actions">
           <button className="btn btn-ghost" onClick={() => setEditing(true)}><Pencil size={15} /> Editar</button>
-          {enr && <button className="btn btn-ghost" onClick={() => go('messages', patient.id)}><MessageCircle size={15} /> Mensagens</button>}
+          <button className="btn btn-ghost" onClick={() => go('messages', patient.id)}><MessageCircle size={15} /> Mensagens</button>
           {sells && !enr && <button className="btn btn-primary" onClick={() => go('new-sale', patient.id)}><ShoppingBag size={15} /> Vender programa</button>}
         </div>
       </header>
@@ -65,16 +66,19 @@ export function PatientDetail() {
                 <dt>E-mail</dt><dd>{patient.email || '—'}</dd>
               </dl>
               {patient.notes && <p className="note">{patient.notes}</p>}
+              <p className="muted small mt">Prontuário clínico: Clínica Experts.</p>
             </Card>
             <Card title="Programa contratado">
               {enr ? (
                 <dl className="dl">
-                  <dt>Programa</dt><dd>{enr.program.name} · {enr.program.ageLabel}</dd>
-                  <dt>Início</dt><dd>{fmtDate(enr.sale.startDate)}</dd>
-                  <dt>Passo atual</dt><dd>{sit.kind === 'program' ? `${sit.step} de ${enr.program.steps.length}` : '—'}</dd>
-                  <dt>Situação</dt><dd><StatusBadge status={sit.status} /></dd>
+                  <dt>Produto</dt><dd>{enr.program.name}</dd>
+                  <dt>Contrato</dt><dd>{enr.contract.label}</dd>
+                  <dt>Vigência</dt><dd>{fmtDate(enr.sale.startDate)} a {fmtDate(enr.sale.endDate)}</dd>
+                  <dt>Passo atual</dt><dd>{sit.kind === 'active' ? `${sit.step} de ${enr.program.steps.length}` : '—'}</dd>
+                  <dt>Situação</dt><dd><StatusBadge status="Programa ativo" /></dd>
                 </dl>
-              ) : <Empty title={sit.kind === 'pending' ? 'Aguardando pagamento' : 'Sem programa ativo'} text={sit.kind === 'pending' ? 'O programa será liberado quando o pagamento for confirmado.' : 'Atendimentos como consulta avulsa. Mensagens com a equipe ficam bloqueadas.'} />}
+              ) : <Empty title={sit.kind === 'pending' ? 'Pagamento pendente' : sit.kind === 'ended' ? sit.status : 'Sem programa contratado'}
+                  text={sit.kind === 'pending' ? 'O programa será ativado quando o pagamento for registrado.' : 'A família mantém a conta no Crescer, mas não pode enviar mensagens.'} />}
             </Card>
             <Card title="Resumo">
               <dl className="dl">
@@ -97,7 +101,7 @@ export function PatientDetail() {
             </Card>
           </div>
         )}
-        {tab === 'followup' && enr && <FollowUpPanel patient={patient} program={enr.program} canEdit={clinical} />}
+        {tab === 'followup' && enr && <FollowUpPanel patient={patient} enrollment={enr} canEdit={clinical} />}
         {tab === 'growth' && <GrowthPanel patient={patient} canEdit={clinical} />}
         {tab === 'vaccines' && <VaccinePanel patient={patient} canEdit />}
         {tab === 'sales' && (
@@ -105,18 +109,18 @@ export function PatientDetail() {
             {sales.length ? (
               <div className="table-wrap">
                 <table className="table">
-                  <thead><tr><th>Programa</th><th>Valor</th><th>Pagamento</th><th>Venda</th><th>Início</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Produto</th><th>Valor</th><th>Pagamento</th><th>Venda</th><th>Vigência</th><th>Situação do programa</th></tr></thead>
                   <tbody>
                     {sales.map((s) => {
                       const pr = state.programs.find((p) => p.id === s.programId)
                       return (
                         <tr key={s.id}>
-                          <td>{pr?.name} · {pr?.ageLabel}</td>
+                          <td>{pr?.name}<small className="block muted">{contractOf(pr, s.contractId)?.label}</small></td>
                           <td className="num">{money(finalPrice(s))}</td>
-                          <td>{s.payment}{s.installments > 1 ? ` (${s.installments}x)` : ''}</td>
+                          <td><StatusBadge status={s.paymentStatus} /><small className="block muted">{s.payment}</small></td>
                           <td>{fmtDate(s.saleDate)}</td>
-                          <td>{fmtDate(s.startDate)}</td>
-                          <td><StatusBadge status={s.status} /></td>
+                          <td>{fmtDate(s.startDate)} a {fmtDate(s.endDate)}</td>
+                          <td><StatusBadge status={programStatus(s)} /></td>
                         </tr>
                       )
                     })}

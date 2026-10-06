@@ -1,24 +1,28 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { ArrowRight, Plus, Search, Users } from 'lucide-react'
 import { useStore } from '../store'
-import type { AppState, Patient, Sex } from '../types'
+import type { AppState, Patient, ProgramStatus, Sex } from '../types'
 import { Card, Empty, Field, Modal, PageHeader, PatientName, StatusBadge, Tabs } from '../ui'
-import { activeEnrollment, ageLabel, currentSale, followUpSituation, normalize, TODAY, uid } from '../utils'
+import { activeEnrollment, ageLabel, contractOf, currentSale, fmtDate, followUpSituation, normalize, programStatus, TODAY, uid } from '../utils'
+import { ExpiryBadge } from './Sales'
 
-type Filter = 'all' | 'program' | 'pending' | 'none'
+type Filter = 'all' | 'active' | 'pending' | 'ended' | 'none'
 
+/** Conta no Crescer ≠ programa: toda família tem acesso; o programa ativo libera benefícios. */
 export const patientSituation = (state: AppState, p: Patient) => {
   const enr = activeEnrollment(state, p.id)
   if (enr) {
-    const sit = followUpSituation(state, p, enr.program)
-    return { program: `${enr.program.name} · ${enr.program.ageLabel}`, status: sit.status, step: sit.step?.n, kind: 'program' as const, sit }
+    const sit = followUpSituation(state, p, enr)
+    return { program: enr.program.name, contract: enr.contract.label, until: enr.sale.endDate, status: 'Programa ativo' as ProgramStatus | 'Sem programa', step: sit.step?.n, kind: 'active' as const, sit, sale: enr.sale }
   }
   const sale = currentSale(state, p.id)
-  if (sale?.status === 'Pendente') {
+  const st = sale && programStatus(sale)
+  if (sale && st) {
     const pr = state.programs.find((x) => x.id === sale.programId)
-    return { program: `${pr?.name} · ${pr?.ageLabel}`, status: 'Pagamento pendente', kind: 'pending' as const }
+    const kind = st === 'Pagamento pendente' || st === 'Aguardando início' ? 'pending' as const : 'ended' as const
+    return { program: pr?.name ?? '—', contract: contractOf(pr, sale.contractId)?.label, until: sale.endDate, status: st as ProgramStatus | 'Sem programa', kind, sale }
   }
-  return { program: 'Consulta avulsa', status: 'Sem programa', kind: 'none' as const }
+  return { program: 'Sem programa contratado', status: 'Sem programa' as ProgramStatus | 'Sem programa', kind: 'none' as const }
 }
 
 export function Patients() {
@@ -34,27 +38,28 @@ export function Patients() {
 
   return (
     <>
-      <PageHeader title="Pacientes" subtitle="Crianças, responsáveis, programa contratado e situação do acompanhamento."
+      <PageHeader title="Pacientes" subtitle="Famílias com conta no Crescer: criança, responsável e programa contratado (quando houver)."
         actions={<button className="btn btn-primary" onClick={() => setCreating(true)}><Plus size={16} /> Novo paciente</button>} />
       <Card>
         <div className="toolbar">
           <Tabs value={filter} onChange={setFilter} items={[
-            { id: 'all', label: 'Todos' }, { id: 'program', label: 'Em programa' }, { id: 'pending', label: 'Pagamento pendente' }, { id: 'none', label: 'Sem programa' },
+            { id: 'all', label: 'Todos' }, { id: 'active', label: 'Programa ativo' }, { id: 'pending', label: 'Pagamento pendente' }, { id: 'ended', label: 'Encerrado/cancelado' }, { id: 'none', label: 'Sem programa' },
           ]} />
           <label className="search"><Search size={16} /><input placeholder="Buscar criança ou responsável" value={q} onChange={(e) => setQ(e.target.value)} /></label>
         </div>
         {rows.length ? (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Criança</th><th>Idade</th><th>Responsável</th><th>Programa contratado</th><th>Situação</th><th /></tr></thead>
+              <thead><tr><th>Criança</th><th>Idade</th><th>Responsável</th><th>Programa</th><th>Vigência</th><th>Situação do programa</th><th /></tr></thead>
               <tbody>
                 {rows.map(({ p, s }) => (
                   <tr key={p.id} className="clickable" onClick={() => go('patient', p.id)}>
                     <td><PatientName patient={p} sub={p.sex === 'F' ? 'Menina' : 'Menino'} /></td>
                     <td>{ageLabel(p.birthDate, undefined, true)}</td>
                     <td>{p.guardian}<small className="block muted">{p.guardianRelation} · {p.phone}</small></td>
-                    <td>{s.program}{s.kind === 'program' && <small className="block muted">Passo {s.step}</small>}</td>
-                    <td><StatusBadge status={s.status === 'Pagamento pendente' ? 'Pendente' : s.status} /></td>
+                    <td>{s.program}{'contract' in s && s.contract && <small className="block muted">{s.contract}{s.kind === 'active' ? ` · Passo ${s.step}` : ''}</small>}</td>
+                    <td>{'until' in s && s.until ? `até ${fmtDate(s.until)}` : '—'}</td>
+                    <td><StatusBadge status={s.status} /> {'sale' in s && s.sale && <ExpiryBadge sale={s.sale} />}</td>
                     <td><ArrowRight size={16} className="muted" /></td>
                   </tr>
                 ))}

@@ -1,4 +1,4 @@
-import type { AppState, Patient, Program, Sale } from './types'
+import type { AppState, Patient, Program, ProgramContract, ProgramStatus, Sale } from './types'
 
 /** Data de referência da demonstração (mantém os dados de exemplo coerentes). */
 export const TODAY = '2026-10-06'
@@ -77,24 +77,52 @@ export const firstName = (name: string) => name.replace(/^(Dr|Dra)\.\s*/, '').sp
 
 export const finalPrice = (s: Pick<Sale, 'listPrice' | 'discount'>) => Math.max(0, s.listPrice - s.discount)
 
+/* ------------------------------------------------------------------ */
+/* Produto → Venda → Pagamento → Programa ativo → Vigência             */
+/* ------------------------------------------------------------------ */
+
+export const contractOf = (program: Program | undefined, contractId: string): ProgramContract | undefined =>
+  program?.contracts.find((c) => c.id === contractId)
+
+/** Situação do programa vendido: deriva do pagamento e da vigência. */
+export const programStatus = (sale: Sale, at = TODAY): ProgramStatus => {
+  if (sale.paymentStatus === 'Cancelado') return 'Cancelado'
+  if (sale.paymentStatus === 'Pendente') return 'Pagamento pendente'
+  if (at < sale.startDate) return 'Aguardando início'
+  if (at > sale.endDate) return 'Programa encerrado'
+  return 'Programa ativo'
+}
+
+/** Dias até o fim da vigência (negativo = já encerrado). */
+export const daysToEnd = (sale: Sale, at = TODAY) => diffDays(sale.endDate, at)
+
+/**
+ * Janela usada SOMENTE como exemplo visual de "próximo do vencimento".
+ * A antecedência real dos alertas ainda será definida com o Dr. André.
+ */
+export const DEMO_EXPIRY_WINDOW_DAYS = 60
+
 /** Venda mais recente (não cancelada) do paciente. */
 export const currentSale = (state: AppState, patientId: string) =>
   state.sales
-    .filter((s) => s.patientId === patientId && s.status !== 'Cancelado')
-    .sort((a, b) => b.saleDate.localeCompare(a.saleDate))[0]
+    .filter((s) => s.patientId === patientId && s.paymentStatus !== 'Cancelado')
+    .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
 
-/** Programa ativo = venda paga. Pagamento pendente não libera o programa. */
-export const activeEnrollment = (state: AppState, patientId: string): { sale: Sale; program: Program } | undefined => {
+export interface Enrollment { sale: Sale; program: Program; contract: ProgramContract }
+
+/** Programa ativo = venda paga e dentro da vigência. */
+export const activeEnrollment = (state: AppState, patientId: string): Enrollment | undefined => {
   const sale = state.sales
-    .filter((s) => s.patientId === patientId && s.status === 'Pago')
+    .filter((s) => s.patientId === patientId && programStatus(s) === 'Programa ativo')
     .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
   const program = sale && state.programs.find((p) => p.id === sale.programId)
-  return sale && program ? { sale, program } : undefined
+  const contract = sale && contractOf(program, sale.contractId)
+  return sale && program && contract ? { sale, program, contract } : undefined
 }
 
 export const hasActiveProgram = (state: AppState, patientId: string) => Boolean(activeEnrollment(state, patientId))
 
-/** Etapa atual do programa pela idade da criança (em dias). */
+/** Etapa do programa pela idade da criança (em dias). */
 export const currentStepOf = (program: Program, patient: Patient, at = TODAY) => {
   const days = ageDays(patient.birthDate, at)
   const steps = program.steps
@@ -103,24 +131,28 @@ export const currentStepOf = (program: Program, patient: Patient, at = TODAY) =>
   return steps.find((s) => days >= s.startDay && days < s.endDay) ?? steps[steps.length - 1]
 }
 
-export type FollowState = 'Em dia' | 'Encontro próximo' | 'Atrasado' | 'Concluído'
+/**
+ * Situação do acompanhamento — rótulos NEUTROS.
+ * Se todo passo exige encontro e quando um encontro fica "atrasado" ainda não foi definido
+ * pelo Dr. André; por isso o protótipo apenas informa passos sem registro, sem marcar atraso.
+ */
+export type FollowState = 'Encontro registrado' | 'Aguardando encontro' | 'Passos anteriores sem registro'
 
-/** Situação do acompanhamento: compara etapas já passadas com encontros registrados. */
-export const followUpSituation = (state: AppState, patient: Patient, program: Program) => {
+export const followUpSituation = (state: AppState, patient: Patient, enr: Enrollment) => {
+  const { program, contract, sale } = enr
   const step = currentStepOf(program, patient)
   const records = state.followUps.filter((f) => f.patientId === patient.id && f.programId === program.id)
   const doneSteps = new Set(records.map((r) => r.step))
   const openPendencies = records.flatMap((r) => r.pendencies).filter((p) => !p.done).length
   const days = ageDays(patient.birthDate)
-  const finished = days >= program.endAgeDays
-  const missing = program.steps.filter((s) => s.endDay <= days && !doneSteps.has(s.n))
+  const stepEnd = (n: number) => addDays(patient.birthDate, program.steps[n - 1]?.endDay ?? 0)
+  // Passos do contrato vigente que terminaram depois do início da vigência e não têm encontro registrado.
+  const missing = program.steps.filter((s) => s.n >= contract.fromStep && s.n <= contract.toStep && s.endDay <= days && stepEnd(s.n) > sale.startDate && !doneSteps.has(s.n))
   const currentDone = step ? doneSteps.has(step.n) : false
-  const nextDue = step && !currentDone ? addDays(patient.birthDate, step.endDay) : step ? addDays(patient.birthDate, step.endDay + 1) : undefined
-  let status: FollowState = 'Em dia'
-  if (finished && !missing.length) status = 'Concluído'
-  else if (missing.length) status = 'Atrasado'
-  else if (step && !currentDone && diffDays(addDays(patient.birthDate, step.endDay), TODAY) <= 15) status = 'Encontro próximo'
-  return { step, records, doneSteps, openPendencies, missing, currentDone, nextDue, status }
+  const stepWindowEnd = step ? addDays(patient.birthDate, step.endDay) : undefined
+  const status: FollowState = missing.length ? 'Passos anteriores sem registro' : currentDone ? 'Encontro registrado' : 'Aguardando encontro'
+  const flagged = records.filter((r) => r.flaggedForDoctor).length
+  return { step, records, doneSteps, openPendencies, missing, currentDone, stepWindowEnd, status, flagged }
 }
 
 export const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
