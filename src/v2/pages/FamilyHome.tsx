@@ -1,0 +1,104 @@
+import { CalendarDays, ChartLine, Sparkles, Sprout, Syringe } from 'lucide-react'
+import { contentsForChild, pendingVaccines } from '../domain'
+import { useStore } from '../store'
+import { Artwork, Card, Empty, Progress, StatusBadge } from '../ui'
+import { activeEnrollment, ageLabel, currentSale, currentStepOf, diffDays, firstName, fmtDate, programStatus, TODAY } from '../utils'
+
+export function useChild() {
+  const { state, childId } = useStore()
+  return state.patients.find((p) => p.id === childId)
+}
+
+export function FamilyHome() {
+  const { state, user, go } = useStore()
+  const child = useChild()
+  if (!child || !user) return <Empty title="Nenhuma criança vinculada" text="Fale com a secretaria para vincular seu filho à sua conta." />
+
+  const enr = activeEnrollment(state, child.id)
+  const sale = !enr ? currentSale(state, child.id) : undefined
+  const status = sale && programStatus(sale)
+  const offer = state.programs.find((p) => p.active)
+  const step = enr && currentStepOf(enr.program, child)
+  const nextAppt = state.appointments.filter((a) => a.patientId === child.id && a.date >= TODAY && a.status === 'Agendado').sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0]
+  const vaccines = pendingVaccines(state, child)
+  const dueNow = vaccines.filter((v) => v.status !== 'Próxima')
+  const nextVaccine = vaccines.find((v) => v.status === 'Próxima')
+  const lastGrowth = state.growth.filter((g) => g.patientId === child.id).sort((a, b) => b.date.localeCompare(a.date))[0]
+  const materials = contentsForChild(state, child).filter((c) => c.current || c.programId === 'all').slice(0, 3)
+  const gender = child.sex === 'F' ? 'a' : 'o'
+
+  return (
+    <>
+      <header className="page-head family-head">
+        <div>
+          <h1>Olá, {firstName(user.name)}!</h1>
+          <p>Bem-vind{user.title.startsWith('Pai') ? 'o' : 'a'} ao Crescer. Vamos juntos acompanhar cada fase.</p>
+        </div>
+        <div className="child-chip">
+          <Artwork seed={child.name} className="mini" />
+          <span><strong>{firstName(child.name)}</strong><small>{ageLabel(child.birthDate, undefined, true)}</small></span>
+        </div>
+      </header>
+
+      {enr && step ? (
+        <section className="program-hero">
+          <div>
+            <span className="eyebrow">Meu programa · {enr.contract.label.split(' —')[0]}</span>
+            <h2>{enr.program.name}</h2>
+            <h3>Passo {step.n} — {step.title}</h3>
+            <Progress value={(step.n / enr.program.steps.length) * 100} />
+            <p className="hero-meta"><span>Passo {step.n} de {enr.program.steps.length}</span><b>{step.rangeLabel}</b></p>
+            <p className="muted small">Programa ativo até {fmtDate(enr.sale.endDate)}</p>
+            <button className="btn btn-primary" onClick={() => go('my-program')}>Continuar</button>
+          </div>
+          <Artwork seed={child.name + step.n} className="hero-art" />
+        </section>
+      ) : (
+        <section className="program-hero locked">
+          <div>
+            <span className="eyebrow">{status === 'Pagamento pendente' ? 'Programa aguardando ativação' : status === 'Programa encerrado' ? 'Programa encerrado' : 'Programas Crescer'}</span>
+            <h2>{status === 'Pagamento pendente' ? 'Quase lá!' : status === 'Programa encerrado' ? `O programa ${gender === 'a' ? 'da' : 'do'} ${firstName(child.name)} terminou` : `Acompanhe ${gender === 'a' ? 'a' : 'o'} ${firstName(child.name)} de perto`}</h2>
+            <p>
+              {status === 'Pagamento pendente'
+                ? 'Assim que o pagamento for registrado, os passos, conteúdos e o canal de mensagens com a equipe ficam disponíveis.'
+                : status === 'Programa encerrado'
+                  ? `A vigência terminou em ${fmtDate(sale!.endDate)}. Para continuar o acompanhamento, fale com a secretaria sobre a renovação.`
+                  : `Você já tem acesso ao Crescer. O programa ${offer?.name ?? ''} acrescenta passos de 45 dias, encontro do passo, Mapa do Passo, conteúdos por fase e mensagens com a equipe.`}
+            </p>
+            {status ? <StatusBadge status={status} /> : <button className="btn btn-ghost" onClick={() => go('my-program')}>Conhecer o programa</button>}
+          </div>
+          <span className="hero-lock"><Sparkles size={40} strokeWidth={1.4} /></span>
+        </section>
+      )}
+
+      <div className="tiles">
+        <button className="tile" onClick={() => go('agenda')}>
+          <span className="stat-icon tone-green"><CalendarDays /></span>
+          <span><small>Próximo encontro</small><strong>{nextAppt ? fmtDate(nextAppt.date) : 'Sem agendamento'}</strong><em>{nextAppt ? `${nextAppt.time} · ${nextAppt.kind}` : 'Fale com a secretaria'}</em></span>
+        </button>
+        <button className="tile" onClick={() => go('vaccines')}>
+          <span className="stat-icon tone-amber"><Syringe /></span>
+          <span><small>Vacinas</small><strong>{dueNow.length ? `${dueNow.length} pendente${dueNow.length > 1 ? 's' : ''}` : 'Em dia'}</strong><em>{dueNow[0] ? `${dueNow[0].dose.vaccine} — desde ${fmtDate(dueNow[0].due)}` : nextVaccine ? `Próxima em ${diffDays(nextVaccine.due, TODAY)} dias` : 'Nenhuma dose agora'}</em></span>
+        </button>
+        <button className="tile" onClick={() => go('growth')}>
+          <span className="stat-icon tone-blue"><ChartLine /></span>
+          <span><small>Crescimento</small><strong>{lastGrowth ? `${lastGrowth.weight.toLocaleString('pt-BR')} kg · ${lastGrowth.height.toLocaleString('pt-BR')} cm` : 'Sem medições'}</strong><em>{lastGrowth ? `Última medição ${fmtDate(lastGrowth.date)}` : '—'}</em></span>
+        </button>
+      </div>
+
+      <Card title={enr ? 'Materiais desta fase' : 'Materiais gerais'} action={<button className="link-btn" onClick={() => go('materials')}>Ver todos</button>}>
+        {materials.length ? (
+          <div className="media-grid">
+            {materials.map((m) => (
+              <button key={m.id} className="media-card" onClick={() => go('materials', m.id)}>
+                <Artwork seed={m.id} kind={m.type === 'video' ? 'video' : m.type === 'imagem' ? 'image' : 'baby'} />
+                <strong>{m.title}</strong>
+                <small>{m.summary}</small>
+              </button>
+            ))}
+          </div>
+        ) : <Empty icon={<Sprout />} title="Nenhum material disponível no momento" />}
+      </Card>
+    </>
+  )
+}
